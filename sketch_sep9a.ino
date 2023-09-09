@@ -9,7 +9,7 @@
 
 // WiFi 정보 설정
 const char ssid[] = "LGWiFi_DD04";
-const char pass[] = "8001002441";
+const char pass[] = "---";
 int status = WL_IDLE_STATUS;
 
 // 웹 서버 주소 및 포트 번호 설정
