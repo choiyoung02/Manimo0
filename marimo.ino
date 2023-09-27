@@ -21,7 +21,7 @@ WiFiEspClient client;
 #define ONE_WIRE_BUS 4
 #define NEOPIXEL_PIN1 6 // 상태 알려주는 네오픽셀
 #define NEOPIXEL_PIN2 5 // 어항 밑 네오픽셀
-#define BUTTON_pin 8 // 버튼을 8번 핀에 연결
+#define BUTTON_pin 7 // 버튼을 8번 핀에 연결
 #define NEOPIXEL_NUM_LEDS1 16
 #define NEOPIXEL_NUM_LEDS2 16
 #define NEOPIXEL_TEMPERATURE_LED 4
@@ -51,7 +51,7 @@ unsigned long lastLoggedDayTemp = 0;
 int turbidityErrorLogCount = 0;
 int temperatureChangeLogCount = 0;
 bool neopixelState = false; // Neopixel 상태 저장 변수
-bool lastNeopixelState = false; // 이전 Neopixel 상태 저장 변수
+bool lastNeopixelState = false; // 이전 Neopixel 상태 저장 변수 
 bool LED_state = true; // LED 상태 저장 변수 (초기에 켜진 상태)
 bool isNeopixelOn = true; // 조명 상태를 나타내는 변수
 int lastButtonState = LOW;
@@ -153,7 +153,7 @@ void loop() {
 
     if (currentTemperature - prevTemperature >= 3) {
       if (temperatureChangeLogCount < maxTemperatureChangeLogsPerDay) {
-        logTemperatureChange(prevTemperature, currentTemperature);
+        logTemperatureChange();
         temperatureChangeLogCount++;
       }
       prevTemperature = currentTemperature;
@@ -175,13 +175,13 @@ void loop() {
         // LED 켜기 (빨간색)
   setColor(neopixels2, 1, isTemperatureSad || isLightSad || isTurbiditySad ? RED_COLOR : GREEN_COLOR);
   setColor(neopixels2, 2, isTemperatureSad || isLightSad || isTurbiditySad ? RED_COLOR : GREEN_COLOR);
-  setColor(neopixels2, 3, isTemperatureSad || isLightSad || isTurbiditySad ? RED_COLOR : GREEN_COLOR);
+  setColor(neopixels2, 0, isTemperatureSad || isLightSad || isTurbiditySad ? RED_COLOR : GREEN_COLOR);
         logNeopixelOn(); // 조명이 켜진 상태를 로그로 전송
       } else {
         // LED 끄기 (검정색)
         setColor(neopixels2, 1, 0);
         setColor(neopixels2, 2, 0);
-        setColor(neopixels2, 3, 0);
+        setColor(neopixels2, 0, 0);
         logNeopixelOff(); // 조명이 꺼진 상태를 로그로 전송
       }
 
@@ -191,36 +191,73 @@ void loop() {
     // 버튼 상태를 저장
     lastButtonState = newButtonState;
   }
+  
 
   delay(1000); // 이 부분은 중복 로그를 방지하기 위한 딜레이입니다.
 }
 
-void logTemperatureChange(float prevTemp, float currentTemp) {
+
+
+void logTemperatureChange() {
   // 온도 변화 로그를 서버로 전송하는 코드를 작성
   // JSON 데이터 형식으로 로그 데이터 생성
-  String jsonData = "{\"eventType\": \"temperatureChange\", \"prevTemp\": " + String(prevTemp) + ", \"currentTemp\": " + String(currentTemp) + "}";
-  sendLogToServer(jsonData);
+  String jsonData = "{\"marimoId\": 1}";
+  sendLogToServer(jsonData, 3);
 }
 
 void logNeopixelOn() {
   // Neopixel 켜짐 로그를 서버로 전송하는 코드를 작성
   // JSON 데이터 형식으로 로그 데이터 생성
-  String jsonData = "{\"eventType\": \"neopixelOn\"}";
-  sendLogToServer(jsonData);
+  String jsonData = "{\"marimoId\": 1}";
+  sendLogToServer(jsonData,1);
 }
 
 void logNeopixelOff() {
   // Neopixel 꺼짐 로그를 서버로 전송하는 코드를 작성
   // JSON 데이터 형식으로 로그 데이터 생성
-  String jsonData = "{\"eventType\": \"neopixelOff\"}";
-  sendLogToServer(jsonData);
+  String jsonData = "{\"marimoId\": 1}";
+  sendLogToServer(jsonData,1);
 }
 
 // 로그 데이터를 서버로 전송하는 함수
-void sendLogToServer(String logData) {
+void sendJSONDataToServer(int cdsValue, int turbidityValue, float tempC) {// 센서 데이터 
+  /*if (!client.connected()) {
+    // 클라이언트가 연결되어 있지 않으면 연결 시도
+    if (client.connect(serverAddress, serverPort)) {
+      Serial.println("Connected to server");
+    } else {
+      Serial.println("Connection to server failed");
+      return;  // 연결 실패 시 함수 종료
+    }
+  }*/
+
+  // JSON 데이터 형식 구성
+  String jsonData = "{\"marimoId\": 1, \"stat1\": " + String(cdsValue) + ", \"stat2\": " + String(turbidityValue) + ", \"stat3\": " + String(tempC) + "}";
+
+  // HTTP POST 요청 준비
+  String url = "/marimoData/sensor";
+  String payload = jsonData;
+
+  if (client.connect(serverAddress, serverPort)) {
+      client.print("POST " + url + " HTTP/1.1\r\n");
+      client.print("Host: " + String(serverAddress) + ":" + String(serverPort) + "\r\n");
+      client.print("Content-Type: application/json\r\n");
+      client.print("Content-Length: ");
+      client.print(payload.length());
+      client.print("\r\n\r\n");
+      client.print(payload);
+      Serial.println("Data Sent to Server");
+    } else {
+      Serial.println("Connection to server failed");
+    }
+
+}
+
+void sendLogToServer(String logData, int num) {//로그
   if (client.connect(serverAddress, serverPort)) {
     // HTTP POST 요청 준비
-    String url = "/log"; // 로그 엔드포인트 URL
+    
+    String url = "/log/" + String(num); // 로그 엔드포인트 URL
     String payload = logData;
 
     client.print("POST " + url + " HTTP/1.1\r\n");
